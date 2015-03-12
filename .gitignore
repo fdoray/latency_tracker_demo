@@ -27,3 +27,6 @@
 *.i*86
 *.x86_64
 *.hex
+src/io-demo
+src/mmap-demo
+src/sleep-demo
