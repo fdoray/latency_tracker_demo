@@ -1,0 +1,717 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="818" onload="init(evt)" viewBox="0 0 1200 818" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs >
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	.func_g:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	var details, svg;
+	function init(evt) { 
+		details = document.getElementById("details").firstChild; 
+		svg = document.getElementsByTagName("svg")[0];
+	}
+	function s(info) { details.nodeValue = "Function: " + info; }
+	function c() { details.nodeValue = ' '; }
+	function find_child(parent, name, attr) {
+		var children = parent.childNodes;
+		for (var i=0; i<children.length;i++) {
+			if (children[i].tagName == name)
+				return (attr != undefined) ? children[i].attributes[attr].value : children[i];
+		}
+		return;
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_"+attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_"+attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_"+attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes["width"].value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)/,"");
+		t.attributes["x"].value = parseFloat(r.attributes["x"].value) +3;
+		
+		// Smaller than this size won't fit anything
+		if (w < 2*12*0.59) {
+			t.textContent = "";
+			return;
+		}
+		
+		t.textContent = txt;
+		// Fit in full text width
+		if (/^ *$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
+			return;
+		
+		for (var x=txt.length-2; x>0; x--) {
+			if (t.getSubStringLength(0, x+2) <= w) { 
+				t.textContent = txt.substring(0,x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = (parseFloat(e.attributes["x"].value) - x - 10) * ratio + 10;
+				if(e.tagName == "text") e.attributes["x"].value = find_child(e.parentNode, "rect", "x") + 3;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseFloat(e.attributes["width"].value) * ratio;
+			}
+		}
+		
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_child(c[i], x-10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = 10;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseInt(svg.width.baseVal.value) - (10*2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) { 
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr["width"].value);
+		var xmin = parseFloat(attr["x"].value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr["y"].value);
+		var ratio = (svg.width.baseVal.value - 2*10) / width;
+		
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+		
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "1.0";
+		
+		var el = document.getElementsByTagName("g");
+		for(var i=0;i<el.length;i++){
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a["x"].value);
+			var ew = parseFloat(a["width"].value);
+			// Is it an ancestor
+			if (0 == 0) {
+				var upstack = parseFloat(a["y"].value) > ymin;
+			} else {
+				var upstack = parseFloat(a["y"].value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.style["opacity"] = "0.5";
+					zoom_parent(e);
+					e.onclick = function(e){unzoom(); zoom(this);};
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.style["display"] = "none";
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.style["display"] = "none";
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					e.onclick = function(e){zoom(this);};
+					update_text(e);
+				}
+			}
+		}
+	}
+	function unzoom() {
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "0.0";
+		
+		var el = document.getElementsByTagName("g");
+		for(i=0;i<el.length;i++) {
+			el[i].style["display"] = "block";
+			el[i].style["opacity"] = "1";
+			zoom_reset(el[i]);
+			update_text(el[i]);
+		}
+	}	
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="818.0" fill="url(#background)"  />
+<text text-anchor="middle" x="600.00" y="24" font-size="17" font-family="Verdana" fill="rgb(0,0,0)"  >Syscall latency in execCommand function of MongoDB</text>
+<text text-anchor="" x="10.00" y="801" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="details" > </text>
+<text text-anchor="" x="10.00" y="24" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="unzoom" onclick="unzoom()" style="opacity:0.0;cursor:pointer" >Reset Zoom</text>
+<g class="func_g" onmouseover="s('mongo::WriteCmd::run(mongo::OperationContext*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, std::basic_string(char, std::char_traits(char), std::allocator(char) )&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteCmd::run(mongo::OperationContext*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, std::basic_string(char, std::char_traits(char), std::allocator(char) )&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="609" width="1180.0" height="15.0" fill="rgb(86,86,210)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="619.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteCmd::run(mongo::OperationContext*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, std::basic_strin..</text>
+</g>
+<g class="func_g" onmouseover="s('update_time (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>update_time (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="353" width="42.4" height="15.0" fill="rgb(107,107,227)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >upd..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="433" width="844.6" height="15.0" fill="rgb(93,93,215)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="443.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('- (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>- (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="225" width="298.4" height="15.0" fill="rgb(160,160,160)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="235.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >-</text>
+</g>
+<g class="func_g" onmouseover="s('__ext4_journal_get_write_access (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__ext4_journal_get_write_access (428,770,172 ns, 3.13%)</title><rect x="10.0" y="129" width="37.0" height="15.0" fill="rgb(83,83,208)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="139.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__e..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::_runCommands(mongo::OperationContext*, char const*, mongo::BSONObj&amp;, mongo::_BufBuilder(mongo::TrivialAllocator)&amp;, mongo::BSONObjBuilder&amp;, bool, int) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::_runCommands(mongo::OperationContext*, char const*, mongo::BSONObj&amp;, mongo::_BufBuilder(mongo::TrivialAllocator)&amp;, mongo::BSONObjBuilder&amp;, bool, int) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="657" width="1180.0" height="15.0" fill="rgb(95,95,217)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="667.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::_runCommands(mongo::OperationContext*, char const*, mongo::BSONObj&amp;, mongo::_BufBuilder(mongo::TrivialAllocator)&amp;, mongo::BSONObjBuilder&amp;, bool, int)</text>
+</g>
+<g class="func_g" onmouseover="s('- (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>- (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="385" width="844.6" height="15.0" fill="rgb(160,160,160)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="395.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >-</text>
+</g>
+<g class="func_g" onmouseover="s('generic_file_buffered_write (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_write (216,610,345 ns, 1.58%)</title><rect x="747.3" y="321" width="18.7" height="15.0" fill="rgb(128,128,245)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__wt_block_write_off (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_block_write_off (428,770,172 ns, 3.13%)</title><rect x="10.0" y="209" width="37.0" height="15.0" fill="rgb(115,115,234)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="219.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('__mark_inode_dirty (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__mark_inode_dirty (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="337" width="42.4" height="15.0" fill="rgb(131,131,247)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__m..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_bt_write (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_bt_write (428,770,172 ns, 3.13%)</title><rect x="10.0" y="241" width="37.0" height="15.0" fill="rgb(129,129,246)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="251.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_da_write_begin (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_da_write_begin (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="337" width="388.3" height="15.0" fill="rgb(105,105,226)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ext4_da_write_begin</text>
+</g>
+<g class="func_g" onmouseover="s('__wait_on_bit (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wait_on_bit (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="289" width="381.6" height="15.0" fill="rgb(120,120,238)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wait_on_bit</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="481" width="844.6" height="15.0" fill="rgb(93,93,216)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="491.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('[mongod] (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>[mongod] (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="753" width="1180.0" height="15.0" fill="rgb(111,111,231)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="763.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >[mongod]</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_block_write (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_block_write (428,770,172 ns, 3.13%)</title><rect x="10.0" y="225" width="37.0" height="15.0" fill="rgb(111,111,231)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="235.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('start_this_handle (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>start_this_handle (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="289" width="388.3" height="15.0" fill="rgb(127,127,244)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >start_this_handle</text>
+</g>
+<g class="func_g" onmouseover="s('pwrite (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>pwrite (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="401" width="844.6" height="15.0" fill="rgb(139,139,254)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="411.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >pwrite</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_da_get_block_prep (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_da_get_block_prep (354,234,757 ns, 2.59%)</title><rect x="47.0" y="145" width="30.5" height="15.0" fill="rgb(121,121,239)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="155.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ex..</text>
+</g>
+<g class="func_g" onmouseover="s('io_schedule (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="97" width="267.9" height="15.0" fill="rgb(92,92,215)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="107.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >io_schedule</text>
+</g>
+<g class="func_g" onmouseover="s('io_schedule (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (428,770,172 ns, 3.13%)</title><rect x="10.0" y="33" width="37.0" height="15.0" fill="rgb(117,117,236)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="43.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >io_..</text>
+</g>
+<g class="func_g" onmouseover="s('do_get_write_access (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>do_get_write_access (428,770,172 ns, 3.13%)</title><rect x="10.0" y="97" width="37.0" height="15.0" fill="rgb(83,83,207)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="107.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do_..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_page_in_func (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_page_in_func (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="433" width="298.4" height="15.0" fill="rgb(101,101,222)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="443.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_page_in_func</text>
+</g>
+<g class="func_g" onmouseover="s('do_get_write_access (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>do_get_write_access (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="321" width="381.6" height="15.0" fill="rgb(127,127,244)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::_execCommand(mongo::OperationContext*, mongo::Command*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, std::basic_string(char, std::char_traits(char), std::allocator(char) )&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::_execCommand(mongo::OperationContext*, mongo::Command*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, std::basic_string(char, std::char_traits(char), std::allocator(char) )&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="625" width="1180.0" height="15.0" fill="rgb(122,122,240)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="635.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::_execCommand(mongo::OperationContext*, mongo::Command*, std::basic_string(char, std::char_traits(char), std::allocator(char) ) const&amp;, mongo::BSONObj&amp;, int, ..</text>
+</g>
+<g class="func_g" onmouseover="s('sleep_on_shadow_bh (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>sleep_on_shadow_bh (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="113" width="267.9" height="15.0" fill="rgb(92,92,215)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="123.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sleep_on_shadow_bh</text>
+</g>
+<g class="func_g" onmouseover="s('schedule (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="257" width="388.3" height="15.0" fill="rgb(89,89,212)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >schedule</text>
+</g>
+<g class="func_g" onmouseover="s('__lock_page (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__lock_page (157,339,715 ns, 1.15%)</title><rect x="345.5" y="289" width="13.5" height="15.0" fill="rgb(85,85,209)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__wt_reconcile (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_reconcile (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="369" width="298.4" height="15.0" fill="rgb(136,136,251)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_reconcile</text>
+</g>
+<g class="func_g" onmouseover="s('jbd2_journal_get_write_access (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2_journal_get_write_access (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="337" width="381.6" height="15.0" fill="rgb(107,107,228)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >jbd2_journal_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::Collection::_insertDocument(mongo::OperationContext*, mongo::BSONObj const&amp;, bool) (3,890,661,675 ns, 28.43%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::Collection::_insertDocument(mongo::OperationContext*, mongo::BSONObj const&amp;, bool) (3,890,661,675 ns, 28.43%)</title><rect x="10.0" y="513" width="335.4" height="15.0" fill="rgb(120,120,238)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="523.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::Collection::_insertDocument(mongo::Ope..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_write (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_write (428,770,172 ns, 3.13%)</title><rect x="10.0" y="193" width="37.0" height="15.0" fill="rgb(81,81,206)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="203.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (428,770,172 ns, 3.13%)</title><rect x="10.0" y="321" width="37.0" height="15.0" fill="rgb(80,80,205)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./m..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::IndexCatalog::indexRecord(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;) (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::IndexCatalog::indexRecord(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;) (428,770,172 ns, 3.13%)</title><rect x="10.0" y="497" width="37.0" height="15.0" fill="rgb(133,133,249)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="507.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mon..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_reserve_inode_write/0x (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_reserve_inode_write/0x (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="209" width="267.9" height="15.0" fill="rgb(133,133,249)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="219.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ext4_reserve_inode_write/0x</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_log_write (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_log_write (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="449" width="844.6" height="15.0" fill="rgb(126,126,243)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="459.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_log_write</text>
+</g>
+<g class="func_g" onmouseover="s('jbd2__journal_start (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2__journal_start (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="305" width="388.3" height="15.0" fill="rgb(88,88,211)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >jbd2__journal_start</text>
+</g>
+<g class="func_g" onmouseover="s('wait_transaction_locked (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>wait_transaction_locked (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="257" width="42.4" height="15.0" fill="rgb(107,107,228)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >wai..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WiredTigerIndex::insert(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, bool) (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WiredTigerIndex::insert(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, bool) (428,770,172 ns, 3.13%)</title><rect x="10.0" y="449" width="37.0" height="15.0" fill="rgb(101,101,223)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="459.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mon..</text>
+</g>
+<g class="func_g" onmouseover="s('rwsem_down_read_failed (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>rwsem_down_read_failed (354,234,757 ns, 2.59%)</title><rect x="47.0" y="113" width="30.5" height="15.0" fill="rgb(97,97,219)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="123.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >rw..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_bt_write (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_bt_write (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="305" width="298.4" height="15.0" fill="rgb(134,134,250)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_bt_write</text>
+</g>
+<g class="func_g" onmouseover="s('__block_write_begin (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__block_write_begin (354,234,757 ns, 2.59%)</title><rect x="47.0" y="161" width="30.5" height="15.0" fill="rgb(81,81,206)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="171.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__..</text>
+</g>
+<g class="func_g" onmouseover="s('start_this_handle (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>start_this_handle (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="273" width="42.4" height="15.0" fill="rgb(101,101,222)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sta..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_reserve_inode_write/0x (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_reserve_inode_write/0x (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="369" width="381.6" height="15.0" fill="rgb(107,107,227)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ext4_reserve_inode_write/0x</text>
+</g>
+<g class="func_g" onmouseover="s('sleep_on_shadow_bh (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>sleep_on_shadow_bh (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="273" width="381.6" height="15.0" fill="rgb(138,138,254)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sleep_on_shadow_bh</text>
+</g>
+<g class="func_g" onmouseover="s('jbd2_journal_get_write_access (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2_journal_get_write_access (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="177" width="267.9" height="15.0" fill="rgb(126,126,243)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="187.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >jbd2_journal_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WriteBatchExecutor::bulkExecute(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::BatchedUpsertDetail*, std::allocator(mongo::BatchedUpsertDetail*) )*, std::vector(mongo::WriteErrorDetail*, std::allocator(mongo::WriteErrorDetail*) )*) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteBatchExecutor::bulkExecute(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::BatchedUpsertDetail*, std::allocator(mongo::BatchedUpsertDetail*) )*, std::vector(mongo::WriteErrorDetail*, std::allocator(mongo::WriteErrorDetail*) )*) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="577" width="1180.0" height="15.0" fill="rgb(108,108,228)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="587.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteBatchExecutor::bulkExecute(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::BatchedUpsertDetail*, std::allocat..</text>
+</g>
+<g class="func_g" onmouseover="s('__wait_on_bit (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wait_on_bit (428,770,172 ns, 3.13%)</title><rect x="10.0" y="65" width="37.0" height="15.0" fill="rgb(88,88,212)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="75.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('jbd2_journal_get_write_access (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2_journal_get_write_access (428,770,172 ns, 3.13%)</title><rect x="10.0" y="113" width="37.0" height="15.0" fill="rgb(103,103,224)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="123.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >jbd..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_evict_page (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_evict_page (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="417" width="298.4" height="15.0" fill="rgb(92,92,215)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="427.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_evict_page</text>
+</g>
+<g class="func_g" onmouseover="s('schedule (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (354,234,757 ns, 2.59%)</title><rect x="47.0" y="97" width="30.5" height="15.0" fill="rgb(81,81,205)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="107.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sc..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_file_write+0 (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_file_write+0 (216,610,345 ns, 1.58%)</title><rect x="747.3" y="369" width="18.7" height="15.0" fill="rgb(119,119,237)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('call_rwsem_down_read_failed (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>call_rwsem_down_read_failed (354,234,757 ns, 2.59%)</title><rect x="47.0" y="129" width="30.5" height="15.0" fill="rgb(137,137,253)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="139.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ca..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_da_write_begin (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_da_write_begin (157,339,715 ns, 1.15%)</title><rect x="345.5" y="337" width="13.5" height="15.0" fill="rgb(122,122,240)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('generic_file_aio_write (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_aio_write (216,610,345 ns, 1.58%)</title><rect x="747.3" y="353" width="18.7" height="15.0" fill="rgb(129,129,246)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('jbd2__journal_start (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2__journal_start (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="289" width="42.4" height="15.0" fill="rgb(98,98,220)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >jbd..</text>
+</g>
+<g class="func_g" onmouseover="s('out_of_line_wait_on_bit (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>out_of_line_wait_on_bit (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="145" width="267.9" height="15.0" fill="rgb(106,106,227)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="155.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >out_of_line_wait_on_bit</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::BtreeBasedAccessMethod::insert(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, mongo::InsertDeleteOptions const&amp;, long*) (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::BtreeBasedAccessMethod::insert(mongo::OperationContext*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, mongo::InsertDeleteOptions const&amp;, long*) (428,770,172 ns, 3.13%)</title><rect x="10.0" y="465" width="37.0" height="15.0" fill="rgb(127,127,244)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="475.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mon..</text>
+</g>
+<g class="func_g" onmouseover="s('__wait_on_bit (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wait_on_bit (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="129" width="267.9" height="15.0" fill="rgb(103,103,224)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="139.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wait_on_bit</text>
+</g>
+<g class="func_g" onmouseover="s('/lib/x86_64-linux-gnu/libpthread.so.0() (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>/lib/x86_64-linux-gnu/libpthread.so.0() (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="737" width="1180.0" height="15.0" fill="rgb(112,112,231)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="747.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >/lib/x86_64-linux-gnu/libpthread.so.0()</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_dirty_inode (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_dirty_inode (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="321" width="42.4" height="15.0" fill="rgb(81,81,206)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ext..</text>
+</g>
+<g class="func_g" onmouseover="s('__generic_file_aio_write+0 (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__generic_file_aio_write+0 (354,234,757 ns, 2.59%)</title><rect x="47.0" y="209" width="30.5" height="15.0" fill="rgb(131,131,248)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="219.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="353" width="298.4" height="15.0" fill="rgb(131,131,247)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('sleep_on_page (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>sleep_on_page (157,339,715 ns, 1.15%)</title><rect x="345.5" y="257" width="13.5" height="15.0" fill="rgb(123,123,241)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WiredTigerRecordStore::insertRecord(mongo::OperationContext*, char const*, int, bool) (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WiredTigerRecordStore::insertRecord(mongo::OperationContext*, char const*, int, bool) (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="497" width="298.4" height="15.0" fill="rgb(123,123,241)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="507.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WiredTigerRecordStore::insertReco..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (428,770,172 ns, 3.13%)</title><rect x="10.0" y="257" width="37.0" height="15.0" fill="rgb(85,85,209)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./m..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WiredTigerRecoveryUnit::_commit() (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WiredTigerRecoveryUnit::_commit() (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="513" width="844.6" height="15.0" fill="rgb(136,136,252)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="523.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WiredTigerRecoveryUnit::_commit()</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WriteBatchExecutor::execInserts(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::WriteErrorDetail*, std::allocator(mongo::WriteErrorDetail*) )*) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteBatchExecutor::execInserts(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::WriteErrorDetail*, std::allocator(mongo::WriteErrorDetail*) )*) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="561" width="1180.0" height="15.0" fill="rgb(116,116,235)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="571.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteBatchExecutor::execInserts(mongo::BatchedCommandRequest const&amp;, mongo::WriteConcernOptions const&amp;, std::vector(mongo::WriteErrorDetail*, std::allocator(..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::runQuery(mongo::OperationContext*, mongo::Message&amp;, mongo::QueryMessage&amp;, mongo::NamespaceString const&amp;, mongo::CurOp&amp;, mongo::Message&amp;) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::runQuery(mongo::OperationContext*, mongo::Message&amp;, mongo::QueryMessage&amp;, mongo::NamespaceString const&amp;, mongo::CurOp&amp;, mongo::Message&amp;) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="673" width="1180.0" height="15.0" fill="rgb(89,89,212)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="683.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::runQuery(mongo::OperationContext*, mongo::Message&amp;, mongo::QueryMessage&amp;, mongo::NamespaceString const&amp;, mongo::CurOp&amp;, mongo::Message&amp;)</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_block_write (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_block_write (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="289" width="298.4" height="15.0" fill="rgb(95,95,218)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_block_write</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_btcur_insert (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_btcur_insert (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="465" width="298.4" height="15.0" fill="rgb(101,101,222)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="475.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_btcur_insert</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::IndexCatalog::_indexRecord(mongo::OperationContext*, mongo::IndexCatalogEntry*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;) (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::IndexCatalog::_indexRecord(mongo::OperationContext*, mongo::IndexCatalogEntry*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;) (428,770,172 ns, 3.13%)</title><rect x="10.0" y="481" width="37.0" height="15.0" fill="rgb(118,118,236)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="491.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mon..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="385" width="298.4" height="15.0" fill="rgb(116,116,235)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="395.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_txn_commit (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_txn_commit (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="465" width="844.6" height="15.0" fill="rgb(98,98,220)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="475.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_txn_commit</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_evict_page (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_evict_page (428,770,172 ns, 3.13%)</title><rect x="10.0" y="353" width="37.0" height="15.0" fill="rgb(109,109,229)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('out_of_line_wait_on_bit (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>out_of_line_wait_on_bit (428,770,172 ns, 3.13%)</title><rect x="10.0" y="81" width="37.0" height="15.0" fill="rgb(95,95,218)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="91.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >out..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WiredTigerRecoveryUnit::_txnClose(bool) (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WiredTigerRecoveryUnit::_txnClose(bool) (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="497" width="844.6" height="15.0" fill="rgb(97,97,219)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="507.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WiredTigerRecoveryUnit::_txnClose(bool)</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_page_in_func (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_page_in_func (428,770,172 ns, 3.13%)</title><rect x="10.0" y="369" width="37.0" height="15.0" fill="rgb(111,111,231)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (428,770,172 ns, 3.13%)</title><rect x="10.0" y="273" width="37.0" height="15.0" fill="rgb(81,81,206)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./m..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_da_write_begin (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_da_write_begin (216,610,345 ns, 1.58%)</title><rect x="747.3" y="305" width="18.7" height="15.0" fill="rgb(117,117,235)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="337" width="298.4" height="15.0" fill="rgb(139,139,254)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('__generic_file_aio_write (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__generic_file_aio_write (216,610,345 ns, 1.58%)</title><rect x="747.3" y="337" width="18.7" height="15.0" fill="rgb(90,90,214)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('mongo::MyMessageHandler::process(mongo::Message&amp;, mongo::AbstractMessagingPort*, mongo::LastError*) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::MyMessageHandler::process(mongo::Message&amp;, mongo::AbstractMessagingPort*, mongo::LastError*) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="705" width="1180.0" height="15.0" fill="rgb(125,125,243)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="715.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::MyMessageHandler::process(mongo::Message&amp;, mongo::AbstractMessagingPort*, mongo::LastError*)</text>
+</g>
+<g class="func_g" onmouseover="s('grab_cache_page_write_begin (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>grab_cache_page_write_begin (157,339,715 ns, 1.15%)</title><rect x="345.5" y="321" width="13.5" height="15.0" fill="rgb(136,136,252)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('schedule (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="241" width="42.4" height="15.0" fill="rgb(99,99,221)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="251.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sch..</text>
+</g>
+<g class="func_g" onmouseover="s('__ext4_journal_start_sb (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__ext4_journal_start_sb (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="321" width="388.3" height="15.0" fill="rgb(123,123,241)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__ext4_journal_start_sb</text>
+</g>
+<g class="func_g" onmouseover="s('out_of_line_wait_on_bit (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>out_of_line_wait_on_bit (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="305" width="381.6" height="15.0" fill="rgb(108,108,228)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >out_of_line_wait_on_bit</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_write (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_write (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="257" width="298.4" height="15.0" fill="rgb(96,96,218)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_write</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_row_search (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_row_search (428,770,172 ns, 3.13%)</title><rect x="10.0" y="385" width="37.0" height="15.0" fill="rgb(123,123,240)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="395.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('generic_file_buffered_write (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_write (157,339,715 ns, 1.15%)</title><rect x="345.5" y="353" width="13.5" height="15.0" fill="rgb(91,91,214)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__generic_file_aio_write+ (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__generic_file_aio_write+ (157,339,715 ns, 1.15%)</title><rect x="345.5" y="369" width="13.5" height="15.0" fill="rgb(97,97,219)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__wt_row_search (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_row_search (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="449" width="298.4" height="15.0" fill="rgb(138,138,253)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="459.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_row_search</text>
+</g>
+<g class="func_g" onmouseover="s('io_schedule (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (216,610,345 ns, 1.58%)</title><rect x="747.3" y="241" width="18.7" height="15.0" fill="rgb(129,129,246)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="251.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('mongo::assembleResponse(mongo::OperationContext*, mongo::Message&amp;, mongo::DbResponse&amp;, mongo::HostAndPort const&amp;) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::assembleResponse(mongo::OperationContext*, mongo::Message&amp;, mongo::DbResponse&amp;, mongo::HostAndPort const&amp;) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="689" width="1180.0" height="15.0" fill="rgb(83,83,207)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="699.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::assembleResponse(mongo::OperationContext*, mongo::Message&amp;, mongo::DbResponse&amp;, mongo::HostAndPort const&amp;)</text>
+</g>
+<g class="func_g" onmouseover="s('__ext4_journal_start_sb (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__ext4_journal_start_sb (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="305" width="42.4" height="15.0" fill="rgb(118,118,237)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__e..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::Command::execCommand(mongo::OperationContext*, mongo::Command*, int, char const*, mongo::BSONObj&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::Command::execCommand(mongo::OperationContext*, mongo::Command*, int, char const*, mongo::BSONObj&amp;, mongo::BSONObjBuilder&amp;, bool) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="641" width="1180.0" height="15.0" fill="rgb(117,117,236)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="651.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::Command::execCommand(mongo::OperationContext*, mongo::Command*, int, char const*, mongo::BSONObj&amp;, mongo::BSONObjBuilder&amp;, bool)</text>
+</g>
+<g class="func_g" onmouseover="s('- (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>- (428,770,172 ns, 3.13%)</title><rect x="10.0" y="161" width="37.0" height="15.0" fill="rgb(160,160,160)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="171.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >-</text>
+</g>
+<g class="func_g" onmouseover="s('do_get_write_access (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>do_get_write_access (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="161" width="267.9" height="15.0" fill="rgb(128,128,245)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="171.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('__ext4_journal_get_write_access (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__ext4_journal_get_write_access (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="353" width="381.6" height="15.0" fill="rgb(136,136,252)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__ext4_journal_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_evict (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_evict (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="401" width="298.4" height="15.0" fill="rgb(108,108,228)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="411.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_evict</text>
+</g>
+<g class="func_g" onmouseover="s('wait_transaction_locked (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>wait_transaction_locked (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="273" width="388.3" height="15.0" fill="rgb(131,131,248)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >wait_transaction_locked</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::Collection::insertDocument(mongo::OperationContext*, mongo::BSONObj const&amp;, bool) (3,890,661,675 ns, 28.43%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::Collection::insertDocument(mongo::OperationContext*, mongo::BSONObj const&amp;, bool) (3,890,661,675 ns, 28.43%)</title><rect x="10.0" y="529" width="335.4" height="15.0" fill="rgb(100,100,222)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="539.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::Collection::insertDocument(mongo::Oper..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_da_write_begin (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_da_write_begin (354,234,757 ns, 2.59%)</title><rect x="47.0" y="177" width="30.5" height="15.0" fill="rgb(87,87,211)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="187.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ex..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_write (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_write (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="417" width="844.6" height="15.0" fill="rgb(131,131,248)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="427.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_write</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="481" width="298.4" height="15.0" fill="rgb(134,134,250)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="491.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('generic_file_buffered_write (354,234,757 ns, 2.59%)')" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_write (354,234,757 ns, 2.59%)</title><rect x="47.0" y="193" width="30.5" height="15.0" fill="rgb(84,84,208)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="203.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ge..</text>
+</g>
+<g class="func_g" onmouseover="s('io_schedule (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (157,339,715 ns, 1.15%)</title><rect x="345.5" y="241" width="13.5" height="15.0" fill="rgb(127,127,244)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="251.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (428,770,172 ns, 3.13%)</title><rect x="10.0" y="417" width="37.0" height="15.0" fill="rgb(104,104,225)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="427.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./m..</text>
+</g>
+<g class="func_g" onmouseover="s('sleep_on_page (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>sleep_on_page (216,610,345 ns, 1.58%)</title><rect x="747.3" y="257" width="18.7" height="15.0" fill="rgb(124,124,242)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__lock_page (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__lock_page (216,610,345 ns, 1.58%)</title><rect x="747.3" y="289" width="18.7" height="15.0" fill="rgb(132,132,248)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('pwrite (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>pwrite (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="241" width="298.4" height="15.0" fill="rgb(81,81,206)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="251.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >pwrite</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="321" width="298.4" height="15.0" fill="rgb(114,114,234)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="331.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./mongod()</text>
+</g>
+<g class="func_g" onmouseover="s('generic_file_buffered_write (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_write (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="353" width="388.3" height="15.0" fill="rgb(102,102,223)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="363.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >generic_file_buffered_write</text>
+</g>
+<g class="func_g" onmouseover="s('sleep_on_shadow_bh (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>sleep_on_shadow_bh (428,770,172 ns, 3.13%)</title><rect x="10.0" y="49" width="37.0" height="15.0" fill="rgb(89,89,213)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="59.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sle..</text>
+</g>
+<g class="func_g" onmouseover="s('ext4_reserve_inode_write/0x (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_reserve_inode_write/0x (428,770,172 ns, 3.13%)</title><rect x="10.0" y="145" width="37.0" height="15.0" fill="rgb(106,106,227)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="155.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ext..</text>
+</g>
+<g class="func_g" onmouseover="s('file_update_time (492,168,660 ns, 3.60%)')" onmouseout="c()" onclick="zoom(this)">
+<title>file_update_time (492,168,660 ns, 3.60%)</title><rect x="1147.6" y="369" width="42.4" height="15.0" fill="rgb(118,118,236)" rx="2" ry="2" />
+<text text-anchor="" x="1150.56" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >fil..</text>
+</g>
+<g class="func_g" onmouseover="s('pwrite (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>pwrite (428,770,172 ns, 3.13%)</title><rect x="10.0" y="177" width="37.0" height="15.0" fill="rgb(131,131,247)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="187.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >pwr..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_block_write_off (3,461,891,503 ns, 25.29%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_block_write_off (3,461,891,503 ns, 25.29%)</title><rect x="47.0" y="273" width="298.4" height="15.0" fill="rgb(94,94,216)" rx="2" ry="2" />
+<text text-anchor="" x="49.97" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__wt_block_write_off</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::PortMessageServer::handleIncomingMsg(void*) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::PortMessageServer::handleIncomingMsg(void*) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="721" width="1180.0" height="15.0" fill="rgb(114,114,233)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="731.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::PortMessageServer::handleIncomingMsg(void*)</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_btcur_insert (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_btcur_insert (428,770,172 ns, 3.13%)</title><rect x="10.0" y="401" width="37.0" height="15.0" fill="rgb(113,113,232)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="411.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('__wt_reconcile (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_reconcile (428,770,172 ns, 3.13%)</title><rect x="10.0" y="305" width="37.0" height="15.0" fill="rgb(106,106,227)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('all (13,686,194,146 ns, 100%)')" onmouseout="c()" onclick="zoom(this)">
+<title>all (13,686,194,146 ns, 100%)</title><rect x="10.0" y="769" width="1180.0" height="15.0" fill="rgb(89,89,212)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="779.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('__wt_evict (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wt_evict (428,770,172 ns, 3.13%)</title><rect x="10.0" y="337" width="37.0" height="15.0" fill="rgb(98,98,220)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="347.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__w..</text>
+</g>
+<g class="func_g" onmouseover="s('./mongod() (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>./mongod() (428,770,172 ns, 3.13%)</title><rect x="10.0" y="289" width="37.0" height="15.0" fill="rgb(114,114,233)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="299.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >./m..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WiredTigerIndexUnique::_insert(__wt_cursor*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, bool) (428,770,172 ns, 3.13%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WiredTigerIndexUnique::_insert(__wt_cursor*, mongo::BSONObj const&amp;, mongo::RecordId const&amp;, bool) (428,770,172 ns, 3.13%)</title><rect x="10.0" y="433" width="37.0" height="15.0" fill="rgb(93,93,216)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="443.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mon..</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WriteUnitOfWork::commit() (9,795,532,471 ns, 71.57%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteUnitOfWork::commit() (9,795,532,471 ns, 71.57%)</title><rect x="345.4" y="529" width="844.6" height="15.0" fill="rgb(132,132,248)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="539.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteUnitOfWork::commit()</text>
+</g>
+<g class="func_g" onmouseover="s('__generic_file_aio_write (4,503,527,459 ns, 32.91%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__generic_file_aio_write (4,503,527,459 ns, 32.91%)</title><rect x="359.0" y="369" width="388.3" height="15.0" fill="rgb(96,96,219)" rx="2" ry="2" />
+<text text-anchor="" x="362.02" y="379.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__generic_file_aio_write</text>
+</g>
+<g class="func_g" onmouseover="s('io_schedule (4,425,788,944 ns, 32.34%)')" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (4,425,788,944 ns, 32.34%)</title><rect x="766.0" y="257" width="381.6" height="15.0" fill="rgb(98,98,220)" rx="2" ry="2" />
+<text text-anchor="" x="768.98" y="267.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >io_schedule</text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WriteBatchExecutor::executeBatch(mongo::BatchedCommandRequest const&amp;, mongo::BatchedCommandResponse*) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteBatchExecutor::executeBatch(mongo::BatchedCommandRequest const&amp;, mongo::BatchedCommandResponse*) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="593" width="1180.0" height="15.0" fill="rgb(120,120,238)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="603.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteBatchExecutor::executeBatch(mongo::BatchedCommandRequest const&amp;, mongo::BatchedCommandResponse*)</text>
+</g>
+<g class="func_g" onmouseover="s('__wait_on_bit_lock (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wait_on_bit_lock (157,339,715 ns, 1.15%)</title><rect x="345.5" y="273" width="13.5" height="15.0" fill="rgb(102,102,223)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('mongo::WriteBatchExecutor::execOneInsert(mongo::WriteBatchExecutor::ExecInsertsState*, mongo::WriteErrorDetail**) (13,686,194,146 ns, 100.00%)')" onmouseout="c()" onclick="zoom(this)">
+<title>mongo::WriteBatchExecutor::execOneInsert(mongo::WriteBatchExecutor::ExecInsertsState*, mongo::WriteErrorDetail**) (13,686,194,146 ns, 100.00%)</title><rect x="10.0" y="545" width="1180.0" height="15.0" fill="rgb(128,128,245)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="555.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >mongo::WriteBatchExecutor::execOneInsert(mongo::WriteBatchExecutor::ExecInsertsState*, mongo::WriteErrorDetail**)</text>
+</g>
+<g class="func_g" onmouseover="s('__ext4_journal_get_write_access (3,107,625,200 ns, 22.71%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__ext4_journal_get_write_access (3,107,625,200 ns, 22.71%)</title><rect x="77.5" y="193" width="267.9" height="15.0" fill="rgb(123,123,241)" rx="2" ry="2" />
+<text text-anchor="" x="80.51" y="203.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__ext4_journal_get_write_access</text>
+</g>
+<g class="func_g" onmouseover="s('__wait_on_bit_lock (216,610,345 ns, 1.58%)')" onmouseout="c()" onclick="zoom(this)">
+<title>__wait_on_bit_lock (216,610,345 ns, 1.58%)</title><rect x="747.3" y="273" width="18.7" height="15.0" fill="rgb(136,136,251)" rx="2" ry="2" />
+<text text-anchor="" x="750.30" y="283.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s('find_lock_page (157,339,715 ns, 1.15%)')" onmouseout="c()" onclick="zoom(this)">
+<title>find_lock_page (157,339,715 ns, 1.15%)</title><rect x="345.5" y="305" width="13.5" height="15.0" fill="rgb(119,119,237)" rx="2" ry="2" />
+<text text-anchor="" x="348.45" y="315.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+</svg>

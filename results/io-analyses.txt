@@ -1,0 +1,81 @@
+Checking the trace for lost events...
+Timerange: [2015-03-13 14:35:56.255230765, 2015-03-13 14:36:02.735588977]
+Per-process I/O Read
+###############################################################################
+██████████████████████████████████████████████████    95.55 KB Xorg (2139)                    0 B  file      0 B  net  95.55 KB unknown
+██████████████████                                    34.43 KB gnome-terminal (3471)          0 B  file      0 B  net  34.43 KB unknown
+███████████                                           22.74 KB lttng-sessiond (31058)         0 B  file      0 B  net  22.74 KB unknown
+███████████                                           22.69 KB compiz (3190)                  0 B  file      0 B  net  22.69 KB unknown
+██████████                                            19.52 KB ibus-daemon (3043)             0 B  file      0 B  net  19.52 KB unknown
+█████████                                             17.51 KB lttng-consumerd (31463)        0 B  file      0 B  net  17.51 KB unknown
+██████                                                13.12 KB lttng-consumerd (31453)        0 B  file      0 B  net  13.12 KB unknown
+██████                                                11.72 KB ibus-ui-gtk3 (3066)            0 B  file      0 B  net  11.72 KB unknown
+█████                                                 11.21 KB io-demo (unknown (tid=32700))  11.21 KB file      0 B  net      0 B  unknown
+████                                                   8.98 KB lttng (32702)               8.98 KB file      0 B  net      0 B  unknown
+Per-process I/O Write
+###############################################################################
+██████████████████████████████████████████████████   105.55 MB io-demo (32699)           105.54 MB file      0 B  net   4.00 KB unknown 
+██████████████████                                    40.06 MB lttng-consumerd (31463)        0 B  file      0 B  net  40.06 MB unknown 
+█                                                      2.12 MB lttng-consumerd (31453)        0 B  file      0 B  net   2.12 MB unknown 
+                                                      71.49 KB gnome-terminal (3471)          0 B  file      0 B  net  71.49 KB unknown 
+                                                      54.79 KB Xorg (2139)                    0 B  file      0 B  net  54.79 KB unknown 
+                                                      41.87 KB lttng-sessiond (31058)         0 B  file      0 B  net  41.87 KB unknown 
+                                                      35.73 KB ibus-daemon (3043)             0 B  file      0 B  net  35.73 KB unknown 
+                                                      12.87 KB lttng (32702)              12.87 KB file      0 B  net      0 B  unknown 
+                                                       9.83 KB compiz (3190)                  0 B  file      0 B  net   9.83 KB unknown 
+                                                       7.66 KB dbus-daemon (3009)             0 B  file      0 B  net   7.66 KB unknown 
+Files Read
+###############################################################################
+██████████████████████████████████████████████████    66.71 KB socket:[22634] (Xorg) 'fd 31 in Xorg (2139)'
+█████████████████████                                 28.30 KB socket:[18423] (gnome-terminal) 'fd 6 in gnome-terminal (3471)'
+█████████████                                         17.48 KB socket:[80692] (lttng-consumerd) 'fd 23 in lttng-consumerd (31463)'
+████████████                                          16.45 KB socket:[18052] (compiz) 'fd 5 in compiz (3190)'
+███████████                                           15.87 KB /dev/input/event2 'fd 16 in Xorg (2139)'
+█████████                                             13.11 KB socket:[81398] (lttng-consumerd) 'fd 23 in lttng-consumerd (31453)'
+█████████                                             12.85 KB socket (lttng-sessiond) 'fd 88 in lttng-sessiond (31058)'
+████████                                              10.90 KB socket:[15900] (ibus-ui-gtk3) 'fd 12 in ibus-ui-gtk3 (3066)'
+████████                                              10.85 KB socket:[15181] (ibus-daemon) 'fd 11 in ibus-daemon (3043)'
+██████                                                 8.41 KB socket:[20869] (Xorg) 'fd 29 in Xorg (2139)'
+Files Write
+###############################################################################
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-eeMMZv 'fd 39 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-DJxlaK 'fd 36 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-q5SDPh 'fd 42 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-SCxBlY 'fd 30 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-44VUF3 'fd 45 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-t5iBwP 'fd 48 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-vCbdfn 'fd 57 in lttng-consumerd (31463)'
+██████████████████████████████████████████████████     5.01 MB /dev/shm/ust-shm-tmp-EAyHnB 'fd 51 in lttng-consumerd (31463)'
+                                                      65.18 KB socket:[18423] (gnome-terminal) 'fd 6 in gnome-terminal (3471)'
+                                                      30.31 KB socket:[22634] (Xorg) 'fd 31 in Xorg (2139)'
+Block I/O Read
+###############################################################################
+██████████████████████████████████████████████████   192.00 KB unknown (pid=unknown (tid=0))
+███████                                               28.00 KB io-demo (pid=32699)   
+Block I/O Write
+###############################################################################
+██████████████████████████████████████████████████   201.00 MB unknown (pid=unknown (tid=0))
+█                                                      4.80 MB kworker/u17:0 (pid=68)
+                                                       1.04 MB io-demo (pid=32699)   
+                                                     772.00 KB ibus-daemon (pid=3043)
+                                                     692.00 KB Xorg (pid=2139)       
+                                                     104.00 KB ksoftirqd/0 (pid=3)   
+                                                     100.00 KB nautilus (pid=3294)   
+Disk nr_sector
+###############################################################################
+█████████████████████████████████████████████████████████████████  234392.00 sectors  sda6
+█████████████████████████████████████████████████████              193000.00 sectors  sda 
+Disk nr_requests
+###############################################################################
+███████████████████████████████████████████████████████████████████  2475.00 requests  sda 
+█████████████████████████████████████████████████████████████        2290.00 requests  sda6
+Disk request time/sector
+###############################################################################
+███████████████████████████████████████████████████████████████████  1.19 ms  sda6
+██████                                                               0.11 ms  sda 
+Network recv_bytes
+###############################################################################
+████████████████████████████████████████████████████████████  450.00 B em1
+Network sent_bytes
+###############################################################################
+██████████████████████████████████████████████████████████████  96.00 B em1
