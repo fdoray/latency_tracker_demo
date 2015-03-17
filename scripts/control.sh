@@ -11,15 +11,15 @@ load_modules() {
   sudo killall lttng-sessiond 2> /dev/null
   sleep 1
   sudo sudo lttng-sessiond -d --extra-kmod-probe=latency_tracker
-  sudo modprobe tracker
-  sudo modprobe syscalls
+  sudo modprobe latency_tracker
+  sudo modprobe latency_tracker_syscalls
   echo "long syscalls tracker loaded successfully"
 }
 
 unload_modules() {
   echo "unloading long syscalls tracker"
-  sudo rmmod syscalls
-  sudo rmmod tracker
+  sudo rmmod latency_tracker_syscalls
+  sudo rmmod latency_tracker
 }
 
 reload_modules() {
